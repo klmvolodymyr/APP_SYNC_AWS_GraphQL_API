@@ -1,7 +1,7 @@
 mutation CreateTestEvent {
   createTestEvent(
     input: {
-      recepientCriteria: {
+      recipientCriteria: {
         upns: [
           "test@google.com",
           "store@yahoo.com"

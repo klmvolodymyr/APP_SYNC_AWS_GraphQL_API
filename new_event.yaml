@@ -1,0 +1,203 @@
+---
+Description: AWSAppSync DynamoDB Example
+Resources:
+  EventDBTable:
+    Type: "AWS::DynamoDB::Table"
+    DeletionPolicy: Retain
+    Properties:
+      TableName: !Ref TableName
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: categoryCode
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+        - AttributeName: categoryCode
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+  GraphQLApi:
+    Type: "AWS::AppSync::GraphQLApi"
+    Properties:
+      Name: AWSAppSync DynamoDB Example
+      AuthenticationType: AWS_IAM
+
+  EventDynamoDBTableDataSource:
+    Type: "AWS::AppSync::DataSource"
+    Properties:
+      ApiId: !GetAtt GraphQLApi.ApiId
+      Name: EventDynamoDBTable
+      Description: The Post DynamoDB table in xxx region
+      Type: AMAZON_DYNAMODB
+      ServiceRoleArn: !Ref ParamKeyExpiration
+      DynamoDBConfig:
+        AwsRegion: !Ref AwsRegion
+        TableName: EventDynamoDBTable
+
+  QueryGetEventResolver:
+    Type: "AWS::AppSync::Resolver"
+    DependsOn: Schema
+    Properties:
+      ApiId: !GetAtt GraphQLApi.ApiId
+      TypeName: Query
+      FieldName: getPost
+      DataSourceName: !GetAtt EventDynamoDBTableDataSource.Name
+      RequestMappingTemplate: |
+        {
+            "version" : "2017-02-28",
+            "operation" : "GetItem",
+            "key" : {
+                "id" : $util.dynamodb.toDynamoDBJson($ctx.args.id)
+            }
+        }
+      ResponseMappingTemplate: "$utils.toJson($ctx.result)"
+
+
+  MutationaddEventResolver:
+    Type: "AWS::AppSync::Resolver"
+    DependsOn: Schema
+    Properties:
+      ApiId: !GetAtt GraphQLApi.ApiId
+      TypeName: Mutation
+      FieldName: addPost
+      DataSourceName: !GetAtt EventDynamoDBTableDataSource.Name
+      RequestMappingTemplate: |
+
+        #set( $d = $util.dynamodb )
+        #set( $values = $d.toMapValues($ctx.args))
+
+        $!{values.put("createdAt", $d.toDynamoDB($util.time.nowISO8601()))}
+        {
+            "version" : "2017-02-28",
+            "operation" : "PutItem",
+            "key" : {
+                "id" : $d.toStringJson($utils.autoId())
+            },
+            "attributeValues" : $util.toJson($values),
+        }
+      ResponseMappingTemplate: "$util.toJson($ctx.result)"
+
+  Schema:
+    Type: "AWS::AppSync::GraphQLSchema"
+    Properties:
+      ApiId: !GetAtt GraphQLApi.ApiId
+      Definition: |
+        input BodyInput {
+        	subject: String!
+        	text: String!
+        }
+
+        input ResourceInput {
+        	link: AWSURL
+        	type: String
+        }
+
+        input RecipientCriteriaInput {
+        	upns: [String]
+        }
+
+        input CreateTestEventInput {
+        	recipientCriteria: RecipientCriteriaInput!
+        	body: BodyInput!
+        	resource: ResourceInput!
+        	categoryCode: String!
+        }
+
+        type Query {
+        	getTestEvent(id: ID!): TestEvent
+        }
+
+        type TestEvent {
+        	id: ID!
+        	recipientCriteria: RecipientCriteria!
+        	body: Body!
+        	resource: Resource!
+        	categoryCode: String!
+            createdAt: AWSDate
+            updatedAt: AWSDate!
+        }
+
+        type Body {
+        	subject: String!
+        	text: String!
+        }
+
+        type Resource {
+        	link: AWSURL
+        	type: String
+        }
+
+        type RecipientCriteria {
+        	upns: [String]
+        }
+
+        mutation CreateTestEvent {
+          createTestEvent(
+            input: {
+              recipientCriteria: {
+                upns: [
+                  "test@google.com",
+                  "store@yahoo.com"
+                ]
+              },
+              body: {
+                subject: "example subject",
+                text: "The word content with the notification details"
+              },
+              resource: {
+                link: "https://test/test",
+                type: "internal"
+              },
+              categoryCode: "internal_mobility"
+            }
+          ) {
+            id
+          }
+        }
+
+        type Query {
+          getTestEvent(id: ID!): TestEvent
+        }
+
+
+        schema {
+            query: Query
+            mutation: Mutation
+        }
+
+
+Parameters:
+
+  ServiceRoleArn:
+    Type: String
+
+  AwsRegion:
+    Type: String
+
+  TableName:
+    Type: String
+
+  ParamKeyExpiration:
+    Type: Number
+
+Outputs:
+  GraphQLApiARN:
+    Description: The App ID of the GraphQL endpoint.
+    Value: !Ref GraphQLApi
+  GraphQLApiId:
+    Description: The App ID of the GraphQL endpoint.
+    Value: !GetAtt GraphQLApi.ApiId
+  GraphQLApiEndpoint:
+    Description: The URL for the GraphQL endpoint.
+    Value: !GetAtt GraphQLApi.GraphQLUrl
+  EventDynamoDBTableDataSourceARN:
+    Description: The ARN for the Post DynamoDB table DataSource.
+    Value: !Ref EventDynamoDBTableDataSource
+  EventDynamoDBTableDataSourceName:
+    Description: The ARN for the Post DynamoDB table DataSource.
+    Value: !GetAtt EventDynamoDBTableDataSource.Name

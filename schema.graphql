@@ -1,0 +1,46 @@
+input BodyInput {
+	subject: String!
+	text: String!
+}
+
+input ResourceInput {
+	link: AWSURL
+	type: String
+}
+
+input RecipientCriteriaInput {
+	upns: [String]
+}
+
+input CreateTestEventInput {
+	recipientCriteria: RecipientCriteriaInput!
+	body: BodyInput!
+	resource: ResourceInput!
+	categoryCode: String!
+}
+
+type Query {
+	getTestEvent(id: ID!): TestEvent
+}
+
+type TestEvent {
+	id: ID!
+	recipientCriteria: RecipientCriteria!
+	body: Body!
+	resource: Resource!
+	categoryCode: String!
+}
+
+type Body {
+	subject: String!
+	text: String!
+}
+
+type Resource {
+	link: AWSURL
+	type: String
+}
+
+type RecipientCriteria {
+	upns: [String]
+}
